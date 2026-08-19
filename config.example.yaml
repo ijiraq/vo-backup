@@ -1,0 +1,25 @@
+job_name: laptop-home
+vospace_root: "vos:jkavelaars/backups/laptop"
+
+# X509 proxy certificate (default: ~/.ssl/cadcproxy.pem)
+# Obtain with: cadc-get-cert -u <username> -f ~/.ssl/cadcproxy.pem
+# certfile: ~/.ssl/cadcproxy.pem
+
+source_paths:
+  - /home/user/projects
+  - /home/user/documents
+
+include:
+  - "**/*"
+exclude:
+  - "**/.git/**"
+  - "**/__pycache__/**"
+  - "**/node_modules/**"
+
+retention_days: 90
+snapshot_weekday: sunday
+nstreams: 4
+verify_checksum: false
+
+# Optional: override default ~/.cache/vo_backup/{job_name}.json
+# state_file: /var/lib/vo_backup/state.json
