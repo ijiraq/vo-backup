@@ -9,7 +9,7 @@ from pathlib import Path
 
 import click
 
-from vo_backup.config import load_config
+from vo_backup.config import DEFAULT_CONFIG_PATH, create_config_interactively, load_config
 from vo_backup.restore import run_restore
 from vo_backup.retention import list_snapshot_ids, parse_snapshot_id, run_prune
 from vo_backup.snapshot import run_snapshot
@@ -37,8 +37,24 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
+def _ensure_config(config_path: str) -> Path:
+    path = Path(config_path)
+    if path.is_file():
+        return path
+
+    click.echo(f"No config found at {path}; creating one.")
+    create_config_interactively(
+        path,
+        prompt=lambda message: click.prompt(message, type=str),
+        echo=click.echo,
+    )
+    click.echo(f"Wrote {path.resolve()}")
+    return path
+
+
 def _load_ctx(config_path: str):
-    config = load_config(config_path)
+    path = _ensure_config(config_path)
+    config = load_config(path)
     vos = VOSpace(config.certfile, nstreams=config.nstreams)
     state = load_state(config.state_file, config.job_name)
     return config, vos, state
@@ -49,7 +65,14 @@ def _exit_code(stats: RunStats) -> int:
 
 
 @click.group()
-@click.option("-c", "--config", required=True, type=click.Path(exists=True), help="YAML config file")
+@click.option(
+    "-c",
+    "--config",
+    default=str(DEFAULT_CONFIG_PATH),
+    show_default=True,
+    type=click.Path(),
+    help="YAML config file (created interactively if missing)",
+)
 @click.option("-v", "--verbose", is_flag=True, help="Debug logging")
 @click.pass_context
 def main(ctx, config: str, verbose: bool) -> None:

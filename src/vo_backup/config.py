@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -14,6 +16,14 @@ WEEKDAYS = frozenset(
 )
 
 DEFAULT_CERTFILE = Path.home() / ".ssl" / "cadcproxy.pem"
+DEFAULT_CONFIG_PATH = Path("vo_backup_config.yaml")
+
+DEFAULT_INCLUDE = ["**/*"]
+DEFAULT_EXCLUDE = [
+    "**/.git/**",
+    "**/__pycache__/**",
+    "**/node_modules/**",
+]
 
 
 def resolve_certfile(certfile: Path | None = None) -> Path:
@@ -61,6 +71,89 @@ def join_uri(base: str, *parts: str) -> str:
     if suffix:
         return f"{base}/{suffix}"
     return base
+
+
+def _sanitize_job_name(name: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", name.strip()).strip("-._")
+    return cleaned or "backup"
+
+
+def write_config(
+    path: str | Path,
+    *,
+    job_name: str,
+    vospace_root: str,
+    source_paths: list[str | Path],
+) -> None:
+    """Write a vo_backup_config.yaml with required fields and sensible defaults."""
+    path = Path(path)
+    resolved_sources = [str(Path(p).expanduser().resolve()) for p in source_paths]
+    payload = {
+        "job_name": job_name,
+        "vospace_root": vospace_root,
+        "source_paths": resolved_sources,
+        "include": list(DEFAULT_INCLUDE),
+        "exclude": list(DEFAULT_EXCLUDE),
+        "retention_days": 90,
+        "snapshot_weekday": "sunday",
+        "nstreams": 4,
+        "verify_checksum": False,
+    }
+    with path.open("w", encoding="utf-8") as fh:
+        yaml.safe_dump(payload, fh, default_flow_style=False, sort_keys=False)
+
+
+def create_config_interactively(
+    path: str | Path,
+    *,
+    prompt: Callable[[str], str],
+    echo: Callable[[str], None] | None = None,
+    cwd: Path | None = None,
+) -> Path:
+    """
+    Prompt for settings without good defaults and write a new config file.
+
+    Asks for:
+    - source directory relative to cwd
+    - VOSpace root URI (vos:...)
+    """
+    path = Path(path)
+    cwd = (cwd or Path.cwd()).resolve()
+    echo = echo or (lambda _msg: None)
+
+    while True:
+        rel = prompt(
+            "Directory to back up (relative to current directory)"
+        ).strip()
+        if not rel:
+            echo("Please enter a directory path.")
+            continue
+        source = (cwd / Path(rel).expanduser()).resolve()
+        if source.exists():
+            break
+        echo(f"Path does not exist: {source}")
+
+    while True:
+        vospace_root = prompt(
+            "VOSpace destination (e.g. vos:username/backups/laptop)"
+        ).strip()
+        if not vospace_root:
+            echo("Please enter a VOSpace URI.")
+            continue
+        if vospace_root.startswith("vos:"):
+            break
+        echo("VOSpace destination must start with 'vos:'")
+
+    job_name = _sanitize_job_name(
+        source.name if source.name not in ("", ".") else cwd.name
+    )
+    write_config(
+        path,
+        job_name=job_name,
+        vospace_root=vospace_root,
+        source_paths=[source],
+    )
+    return path
 
 
 def load_config(path: str | Path) -> BackupConfig:

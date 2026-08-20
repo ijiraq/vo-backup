@@ -34,10 +34,17 @@ pip install -e ".[dev]"
 
 ## Configuration
 
-Copy the example and edit:
+By default vo-backup looks for `vo_backup_config.yaml` in the current directory. If that
+file (or the path given with `-c`) is missing, it asks for the values that have
+no good defaults and writes a new config:
+
+1. Directory to back up (relative to the current directory)
+2. VOSpace destination URI (for example `vos:username/backups/laptop`)
+
+You can also copy the example and edit it yourself:
 
 ```bash
-cp config.example.yaml config.yaml
+cp config.example.yaml vo_backup_config.yaml
 ```
 
 See `[config.example.yaml](config.example.yaml)`. Required fields: `job_name`, `vospace_root`, `source_paths`.
@@ -73,7 +80,7 @@ vos:{user}/{backup_root}/
 
 `current/` holds only **links** into `snapshots/latest/…` after a snapshot completes. The `latest` link is repointed at each new snapshot so `current/` never references pruned timestamp directories.
 
-Do not commit `config.yaml` if it contains site-specific paths. Protect `~/.ssl/cadcproxy.pem` with mode `600`.
+Do not commit `vo_backup_config.yaml` if it contains site-specific paths. Protect `~/.ssl/cadcproxy.pem` with mode `600`.
 
 ### Snapshot storage and links
 
@@ -103,27 +110,30 @@ Files that were **data nodes in** `current/` but not in the previous snapshot ar
 ## Usage
 
 ```bash
-# Incremental sync to current/
-vo-backup -c config.yaml sync
+# Incremental sync to current/ (uses ./vo_backup_config.yaml by default)
+vo-backup sync
+
+# Or pass an explicit config path
+vo-backup -c vo_backup_config.yaml sync
 
 # Create a dated snapshot (syncs first; unchanged files move+link, others upload)
-vo-backup -c config.yaml snapshot
+vo-backup snapshot
 
 # Sync + snapshot + prune
-vo-backup -c config.yaml run --snapshot
+vo-backup run --snapshot
 
 # Remove snapshots older than retention_days
-vo-backup -c config.yaml prune
+vo-backup prune
 
 # List snapshots
-vo-backup -c config.yaml list
+vo-backup list
 
 # Job status
-vo-backup -c config.yaml status
+vo-backup status
 
 # Restore
-vo-backup -c config.yaml restore --from current --dest ./restored
-vo-backup -c config.yaml restore --from snapshot --snapshot-id 2026-05-29T143022Z --dest ./restored
+vo-backup restore --from current --dest ./restored
+vo-backup restore --from snapshot --snapshot-id 2026-05-29T143022Z --dest ./restored
 ```
 
 Add `--dry-run` to `sync`, `snapshot`, `run`, `prune`, or `restore` to log actions without transferring data.
@@ -136,10 +146,10 @@ Example cron (adjust paths):
 
 ```cron
 # Daily incremental sync at 02:00
-0 2 * * * vo-backup -c /etc/vo-backup/config.yaml sync
+0 2 * * * vo-backup -c /etc/vo-backup/vo_backup_config.yaml sync
 
 # Weekly snapshot + prune on Sunday 03:00
-0 3 * * 0 vo-backup -c /etc/vo-backup/config.yaml run --snapshot
+0 3 * * 0 vo-backup -c /etc/vo-backup/vo_backup_config.yaml run --snapshot
 ```
 
 
@@ -147,12 +157,12 @@ Example cron (adjust paths):
 ## Manual verification checklist
 
 1. `pip install -e ".[dev]"` in the project directory.
-2. Create a small test directory and a minimal `config.yaml` pointing at it and a test `vospace_root`.
-3. `vo-backup -c config.yaml sync` — verify files appear under `current/` with `vls vos:.../current/`.
+2. Run `vo-backup status` with no config present and answer the prompts, or create a small test directory and a minimal `vo_backup_config.yaml`.
+3. `vo-backup sync` — verify files appear under `current/` with `vls vos:.../current/`.
 4. Change and delete a local file; run `sync` again — confirm update and deletion on `current/`.
-5. `vo-backup -c config.yaml snapshot` — confirm a new folder under `snapshots/`.
+5. `vo-backup snapshot` — confirm a new folder under `snapshots/`.
 6. Set `retention_days: 0` on a test config (or old snapshots) and run `prune`.
-7. `vo-backup -c config.yaml restore --from snapshot --snapshot-id ... --dest ./out` — confirm files match.
+7. `vo-backup restore --from snapshot --snapshot-id ... --dest ./out` — confirm files match.
 
 
 
