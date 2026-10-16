@@ -25,6 +25,7 @@ dev = [
 
 [project.scripts]
 vo-backup = "vo_backup.cli:main"
+vo-backup-progress = "vo_backup.progress_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

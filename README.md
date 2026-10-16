@@ -131,6 +131,11 @@ vo-backup list
 # Job status
 vo-backup status
 
+# Estimate progress of an in-flight sync (does not change the running job)
+vo-backup-progress
+vo-backup-progress --started 2026-08-14
+vo-backup-progress --sample ~/.cache/vo_backup/progress-sample.json
+
 # Restore
 vo-backup restore --from current --dest ./restored
 vo-backup restore --from snapshot --snapshot-id 2026-05-29T143022Z --dest ./restored
@@ -139,6 +144,27 @@ vo-backup restore --from snapshot --snapshot-id 2026-05-29T143022Z --dest ./rest
 Add `--dry-run` to `sync`, `snapshot`, `run`, `prune`, or `restore` to log actions without transferring data.
 
 Add `-v` for debug logging.
+
+### Progress while a backup is running
+
+`vo-backup-progress` compares local sources (same include/exclude rules) to
+what is already under VOSpace `current/`. It only **reads** remote metadata
+and does not interrupt the running backup.
+
+```bash
+# Totals and percent complete
+vo-backup-progress -c vo_backup_config.yaml
+
+# ETA from when the backup started
+vo-backup-progress --started 2026-08-14
+
+# ETA from rate between two runs (writes/reads a small JSON sample)
+vo-backup-progress --sample /tmp/vo-backup-progress.json
+# ... later ...
+vo-backup-progress --sample /tmp/vo-backup-progress.json
+```
+
+You can also run the script directly: `python scripts/vo_backup_progress.py`.
 
 ## Scheduling (future)
 
